@@ -1,14 +1,17 @@
 import os
+import asyncio
 from fastapi import UploadFile, APIRouter, File, HTTPException
 from pydantic import ValidationError
-from constant.file_constant import CHUNK_SIZE, MAX_FILE_SIZE, UPLOAD_DIR
+from constant.file_constant import CHUNK_SIZE, MAX_FILE_SIZE, UPLOAD_DIR, ALLOWED_EXTENSIONS
 from validation.pydentic_model import FileMeta
+from services.upload_processor import process_file
 
 router = APIRouter()
 
 
 @router.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
+    print("research-agent/upload/")
     """
     Upload a file with validation on type and size.
     Saves file in chunks to prevent memory issues.
@@ -40,6 +43,15 @@ async def upload_file(file: UploadFile = File(...)):
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise
+        
+        # Start background processing for allowed text/document types
+        try:
+            ext = os.path.splitext(file.filename)[1].lower().lstrip('.')
+            if ext in ALLOWED_EXTENSIONS:
+                asyncio.create_task(asyncio.to_thread(process_file, file_path))
+        except Exception as e:
+            # log but do not fail the upload
+            print(f"Failed to start background processing for {file_path}: {e}")
 
         return {
             "filename": file.filename,
@@ -48,10 +60,8 @@ async def upload_file(file: UploadFile = File(...)):
             "status": "Uploaded successfully",
         }
     except HTTPException:
-        # Re-raise HTTP exceptions to be handled by FastAPI
         raise
     except Exception as e:
-        # Cleanup partially written file if any unexpected error occurs
         if 'file_path' in locals() and os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail="Internal server error")

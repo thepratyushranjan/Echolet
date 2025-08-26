@@ -10,3 +10,4 @@ class Config:
 
     POSTGRES_CONNECTION = os.getenv("POSTGRES_CONNECTION")
     POSTGRES_MIGRATION = os.getenv("POSTGRES_MIGRATION")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
